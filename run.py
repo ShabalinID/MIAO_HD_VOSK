@@ -5,111 +5,118 @@ import json
 import time
 import os
 import argparse
+import configparser
 
 
-class daemon:
+class Daemon:
+    WAV_RATE = None
+    PY_PATH = None
+    GLOBAL_PATH = None
+    OUTPUT_FILE_PATH = None
+    INPUT_FILE_PATH = None
+
     def __init__(self):
-        self.getConfig()
-        self.modelInit()
+        Daemon.getConfig()
+        self.voice_model = self.makeVoiceModel()
+        self.rec = self.makeRecognizer()
         self.dirInit()
 
+    @classmethod
+    def getConfig(cls):
+        config = configparser.ConfigParser()
+        config.read("config.ini")
+        config_daemon = config['DAEMON']
 
-    def getConfig(self):
+        cls.WAV_RATE = int(config_daemon['WAV_RATE'])
+        cls.SLEEP = float(config_daemon['DAEMON_RESPONSE_FREQUENCY'])
+        cls.PY_PATH = config_daemon['PY_PATH']
+        cls.GLOBAL_PATH = config_daemon['GLOBAL_PATH']
+        cls.INPUT_FILE_PATH = Daemon.GLOBAL_PATH + config_daemon['INPUT_FILE_PATH']
+        cls.OUTPUT_FILE_PATH = Daemon.GLOBAL_PATH + config_daemon['OUTPUT_FILE_PATH']
 
-
-
-    def modelInit(self):
+    @staticmethod
+    def makeVoiceModel():
         parser = argparse.ArgumentParser(description="voice recognition daemon")
         parser.add_argument("lang", type=str, help='Language for recognizer')
         args = parser.parse_args()
-        model_path = self.py_path + "models/" + args.lang
-        model = Model(model_path)
-        return model
+        model_path = Daemon.PY_PATH + "models/" + args.lang
+        voice_model = Model(model_path)
+        return voice_model
 
-    def dirInit(self):
-        os.makedirs(self.input_file_path, exist_ok=True)
-        os.makedirs(self.output_text_path, exist_ok=True)
+    @staticmethod
+    def dirInit():
+        os.makedirs(Daemon.INPUT_FILE_PATH, exist_ok=True)
+        os.makedirs(Daemon.OUTPUT_FILE_PATH, exist_ok=True)
 
-py_path = ""
+    def makeRecognizer(self):
+        rec = KaldiRecognizer(self.voice_model, Daemon.WAV_RATE)
+        return rec
 
-WAV_RATE = 16000
-DAEMON_RESPONSE_FREQUENCY = 0.3  # seconds
+    def recognize(self):
+        filenames = self.get_new_files()
+        for filename in filenames:
+            wav_file = self.fileToWav(filename)
+            text = self.read_wav(wav_file)
+            self.write_transcript(wav_file, text)
+            self.delete_recognized_wav(wav_file)
 
-global_path = ""
+    @staticmethod
+    def fileToWav(filename):
+        input_file = filename
+        output_file = os.path.splitext(filename)[0] + ".wav"
+        # using ffmpeg app for convert all audio file for .wav with rate=16000 and mono
+        ffmpeg_command = "ffmpeg -hide_banner -loglevel error -i {input_file} -y -ac 1 -ar {sample_rate} {output_file}"\
+            .format(input_file=Daemon.INPUT_FILE_PATH + input_file,
+                    sample_rate=Daemon.WAV_RATE,
+                    output_file=Daemon.INPUT_FILE_PATH + output_file)
+        os.system(ffmpeg_command)
+        os.remove(Daemon.INPUT_FILE_PATH + input_file)
+        return output_file
 
-input_file_path = global_path + "webaudio/"
-output_text_path = global_path + "texts/"
+    @staticmethod
+    def get_new_files():
+        files = os.listdir(Daemon.INPUT_FILE_PATH)
+        return files
 
-rec = KaldiRecognizer(model, WAV_RATE)
+    def read_wav(self, filename):
+        with open(Daemon.INPUT_FILE_PATH + filename, "rb") as wf:
+            wf.read(44)  # skip wav header
+            recognized_words = []
 
+            while True:
+                data = wf.read(4000)
+                if len(data) == 0:
+                    break
+                if self.rec.AcceptWaveform(data):
+                    res = json.loads(self.rec.Result())
+                    recognized_words.append(res['text'])
 
+            res = json.loads(self.rec.FinalResult())
+            recognized_words.append(res['text'])
+            text = ' '.join(recognized_words)
+            return text
 
-def recognizer_daemon():
-    filenames = get_new_files()
-    for filename in filenames:
-        wav_file = fileToWav(filename)
-        text = read_wav(wav_file)
-        write_transcript(wav_file, text)
-        delete_recognized_wav(wav_file)
+    @staticmethod
+    def write_transcript(filename, text):
+        print(text)
+        with open(Daemon.OUTPUT_FILE_PATH + os.path.splitext(filename)[0] + '.txt', 'w') as transcript:
+            transcript.write(text)
 
-
-def fileToWav(filename):
-    input_file = filename
-    output_file = os.path.splitext(filename)[0] + ".wav"
-    # using ffmpeg app for convert all audio file for .wav with rate=16000 and mono
-    ffmpeg_command = "ffmpeg -hide_banner -loglevel error -i {input_file} -y -ac 1 -ar {sample_rate} {output_file}"\
-        .format(input_file=input_file_path + input_file, sample_rate=WAV_RATE, output_file=input_file_path + output_file)
-    os.system(ffmpeg_command)
-    os.remove(input_file_path + input_file)
-    return output_file
-
-
-def get_new_files():
-    files = os.listdir(input_file_path)
-    return files
-
-
-def read_wav(filename):
-    with open(input_file_path + filename, "rb") as wf:
-        wf.read(44)  # skip wav header
-        recognized_words = []
-
-        while True:
-            data = wf.read(4000)
-            if len(data) == 0:
-                break
-            if rec.AcceptWaveform(data):
-                res = json.loads(rec.Result())
-                recognized_words.append(res['text'])
-
-        res = json.loads(rec.FinalResult())
-        recognized_words.append(res['text'])
-        text = ' '.join(recognized_words)
-        return text
-
-
-def write_transcript(filename, text):
-    print(text)
-    with open(output_text_path + os.path.splitext(filename)[0] + '.txt', 'w') as transcript:
-        transcript.write(text)
-
-
-def delete_recognized_wav(filename):
-    os.remove(input_file_path + filename)
+    @staticmethod
+    def delete_recognized_wav(filename):
+        os.remove(Daemon.INPUT_FILE_PATH + filename)
 
 
 if __name__ == '__main__':
-    model = modelInit()
+    daemon = Daemon()
     print("The daemon has been successfully launched!")
     try:
         while True:
-            recognizer_daemon()
-            time.sleep(DAEMON_RESPONSE_FREQUENCY)
+            daemon.recognize()
+            time.sleep(Daemon.SLEEP)
 
     except FileNotFoundError:
         print("No files to recognize!")
-        with open(output_text_path, 'w') as result:
-            result.write('')
 
     except wave.Error:
         print(wave.Error)
