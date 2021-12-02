@@ -9,6 +9,7 @@ import configparser
 
 
 class Daemon:
+    SLEEP = None
     WAV_RATE = None
     PY_PATH = None
     GLOBAL_PATH = None
@@ -17,8 +18,8 @@ class Daemon:
 
     def __init__(self):
         Daemon.getConfig()
-        self.voice_model = self.makeVoiceModel()
-        self.rec = self.makeRecognizer()
+        self.voiceModelInit()
+        self.recognizerInit()
         self.dirInit()
 
     @classmethod
@@ -34,23 +35,20 @@ class Daemon:
         cls.INPUT_FILE_PATH = Daemon.GLOBAL_PATH + config_daemon['INPUT_FILE_PATH']
         cls.OUTPUT_FILE_PATH = Daemon.GLOBAL_PATH + config_daemon['OUTPUT_FILE_PATH']
 
-    @staticmethod
-    def makeVoiceModel():
+    def voiceModelInit(self):
         parser = argparse.ArgumentParser(description="voice recognition daemon")
         parser.add_argument("lang", type=str, help='Language for recognizer')
         args = parser.parse_args()
         model_path = Daemon.PY_PATH + "models/" + args.lang
-        voice_model = Model(model_path)
-        return voice_model
+        self.voice_model = Model(model_path)
 
     @staticmethod
     def dirInit():
         os.makedirs(Daemon.INPUT_FILE_PATH, exist_ok=True)
         os.makedirs(Daemon.OUTPUT_FILE_PATH, exist_ok=True)
 
-    def makeRecognizer(self):
-        rec = KaldiRecognizer(self.voice_model, Daemon.WAV_RATE)
-        return rec
+    def recognizerInit(self):
+        self.rec = KaldiRecognizer(self.voice_model, Daemon.WAV_RATE)
 
     def recognize(self):
         filenames = self.get_new_files()
