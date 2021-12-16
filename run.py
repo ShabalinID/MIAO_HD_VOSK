@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-from vosk import Model, KaldiRecognizer
+from vosk import Model, KaldiRecognizer, SetLogLevel
 import wave
 import json
 import time
@@ -49,12 +49,13 @@ class Daemon:
 
     def recognizerInit(self):
         self.rec = KaldiRecognizer(self.voice_model, Daemon.WAV_RATE)
+        #self.rec = KaldiRecognizer(self.voice_model, Daemon.WAV_RATE, '["раз", "два", "три", "[unk]"]')
 
     def recognize(self):
         filenames = self.get_new_files()
         for filename in filenames:
             wav_file = self.fileToWav(filename)
-            text = self.read_wav(wav_file)
+            text = self.wav_to_text(wav_file)
             self.write_transcript(wav_file, text)
             self.delete_recognized_wav(wav_file)
 
@@ -76,7 +77,7 @@ class Daemon:
         files = os.listdir(Daemon.INPUT_FILE_PATH)
         return files
 
-    def read_wav(self, filename):
+    def wav_to_text(self, filename):
         with open(Daemon.INPUT_FILE_PATH + filename, "rb") as wf:
             wf.read(44)  # skip wav header
             recognized_words = []
@@ -92,7 +93,7 @@ class Daemon:
             res = json.loads(self.rec.FinalResult())
             recognized_words.append(res['text'])
             text = ' '.join(recognized_words)
-            return text
+        return text
 
     @staticmethod
     def write_transcript(filename, text):
@@ -106,6 +107,7 @@ class Daemon:
 
 
 if __name__ == '__main__':
+    SetLogLevel(-1)
     daemon = Daemon()
     print("The daemon has been successfully launched!")
     try:
@@ -114,13 +116,12 @@ if __name__ == '__main__':
             time.sleep(Daemon.SLEEP)
 
     except FileNotFoundError:
-        print("No files to recognize!")
+        print("File doesn't exist!")
 
     except wave.Error:
         print(wave.Error)
 
     finally:
-        print("Daemon was interrupted for some reasons. "
-              "All wavs and texts files will be immediate deleted for this session!")
+        print("Daemon was terminated!")
 #        shutil.rmtree(wavs_path)
 #        shutil.rmtree(text_path)
