@@ -28,6 +28,7 @@ class Daemon:
         config.read("config.ini")
         config_daemon = config['DAEMON']
 
+        #TODO Сделать обозначение для пути к файлу для конкретной языковой модели
         cls.WAV_RATE = int(config_daemon['WAV_RATE'])
         cls.SLEEP = float(config_daemon['DAEMON_RESPONSE_FREQUENCY'])
         cls.PY_PATH = config_daemon['PY_PATH']

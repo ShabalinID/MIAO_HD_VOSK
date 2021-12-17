@@ -1,5 +1,5 @@
-/tests
-/venv
-/texts
-/webaudio
+tests
+venv
+texts
+webaudio
 .idea
