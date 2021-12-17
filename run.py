@@ -31,7 +31,7 @@ class Daemon:
         cls.WAV_RATE = int(config_daemon['WAV_RATE'])
         cls.SLEEP = float(config_daemon['DAEMON_RESPONSE_FREQUENCY'])
         cls.PY_PATH = config_daemon['PY_PATH']
-        cls.DATA_PATH = config_daemon['GLOBAL_PATH']
+        cls.DATA_PATH = config_daemon['DATA_PATH']
         cls.INPUT_FILE_PATH = Daemon.DATA_PATH + config_daemon['INPUT_FILE_PATH']
         cls.OUTPUT_FILE_PATH = Daemon.DATA_PATH + config_daemon['OUTPUT_FILE_PATH']
 
@@ -59,10 +59,13 @@ class Daemon:
                 self.recognize(filename)
 
     def recognize(self, filename):
+        start_time = time.time()
         wav_file = self.fileToWav(filename)
         text = self.wav_to_text(wav_file)
         self.write_transcript(wav_file, text)
         self.delete_recognized_wav(wav_file)
+        time_for_recognizer = time.time() - start_time
+        print(f"File: {wav_file}; recognized text: {text}; time for recognize {time_for_recognizer} second")
 
     @staticmethod
     def fileToWav(filename):
@@ -102,7 +105,6 @@ class Daemon:
 
     @staticmethod
     def write_transcript(filename, text):
-        print(text)
         with open(Daemon.OUTPUT_FILE_PATH + os.path.splitext(filename)[0] + '.txt', 'w') as transcript:
             transcript.write(text)
 
@@ -128,6 +130,6 @@ if __name__ == '__main__':
         print(wave.Error)
 
     finally:
-        print("Daemon was terminated!")
+        print("Daemon was interrupted!")
 #        shutil.rmtree(wavs_path)
 #        shutil.rmtree(text_path)
