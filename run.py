@@ -12,7 +12,7 @@ class Daemon:
     SLEEP = None
     WAV_RATE = None
     PY_PATH = None
-    GLOBAL_PATH = None
+    DATA_PATH = None
     OUTPUT_FILE_PATH = None
     INPUT_FILE_PATH = None
 
@@ -28,19 +28,19 @@ class Daemon:
         config.read("config.ini")
         config_daemon = config['DAEMON']
 
-        #TODO Сделать обозначение для пути к файлу для конкретной языковой модели
         cls.WAV_RATE = int(config_daemon['WAV_RATE'])
         cls.SLEEP = float(config_daemon['DAEMON_RESPONSE_FREQUENCY'])
         cls.PY_PATH = config_daemon['PY_PATH']
-        cls.GLOBAL_PATH = config_daemon['GLOBAL_PATH']
-        cls.INPUT_FILE_PATH = Daemon.GLOBAL_PATH + config_daemon['INPUT_FILE_PATH']
-        cls.OUTPUT_FILE_PATH = Daemon.GLOBAL_PATH + config_daemon['OUTPUT_FILE_PATH']
+        cls.DATA_PATH = config_daemon['GLOBAL_PATH']
+        cls.INPUT_FILE_PATH = Daemon.DATA_PATH + config_daemon['INPUT_FILE_PATH']
+        cls.OUTPUT_FILE_PATH = Daemon.DATA_PATH + config_daemon['OUTPUT_FILE_PATH']
 
     def voiceModelInit(self):
         parser = argparse.ArgumentParser(description="voice recognition daemon")
-        parser.add_argument("lang", type=str, help='Language for recognizer')
+        parser.add_argument("lang", type=str, help='Language for recognizer', default="ru", nargs='?', const="ru")
         args = parser.parse_args()
-        model_path = Daemon.PY_PATH + "models/" + args.lang
+        self.lang = args.lang
+        model_path = Daemon.PY_PATH + "models/" + self.lang
         self.voice_model = Model(model_path)
 
     @staticmethod
@@ -50,15 +50,19 @@ class Daemon:
 
     def recognizerInit(self):
         self.rec = KaldiRecognizer(self.voice_model, Daemon.WAV_RATE)
-        #self.rec = KaldiRecognizer(self.voice_model, Daemon.WAV_RATE, '["раз", "два", "три", "[unk]"]')
+        # self.rec = KaldiRecognizer(self.voice_model, Daemon.WAV_RATE, '["раз", "два", "три", "[unk]"]')
 
-    def recognize(self):
+    def start(self):
         filenames = self.get_new_files()
         for filename in filenames:
-            wav_file = self.fileToWav(filename)
-            text = self.wav_to_text(wav_file)
-            self.write_transcript(wav_file, text)
-            self.delete_recognized_wav(wav_file)
+            if self.lang in filename:  # filename standart "lang_12345678" examble: "ru_b412a34a21"
+                self.recognize(filename)
+
+    def recognize(self, filename):
+        wav_file = self.fileToWav(filename)
+        text = self.wav_to_text(wav_file)
+        self.write_transcript(wav_file, text)
+        self.delete_recognized_wav(wav_file)
 
     @staticmethod
     def fileToWav(filename):
@@ -111,9 +115,10 @@ if __name__ == '__main__':
     SetLogLevel(-1)
     daemon = Daemon()
     print("The daemon has been successfully launched!")
+    print("Daemon language: ", daemon.lang)
     try:
         while True:
-            daemon.recognize()
+            daemon.start()
             time.sleep(Daemon.SLEEP)
 
     except FileNotFoundError:
