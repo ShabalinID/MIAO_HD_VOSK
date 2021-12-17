@@ -19,7 +19,7 @@ class Daemon:
     def __init__(self):
         Daemon.getConfig()
         self.voiceModelInit()
-        self.recognizerInit()
+        #self.recognizerInit()
         self.dirInit()
 
     @classmethod
@@ -55,17 +55,41 @@ class Daemon:
     def start(self):
         filenames = self.get_new_files()
         for filename in filenames:
-            if self.lang in filename:  # filename standart "lang_12345678" examble: "ru_b412a34a21"
+            if self.is_sound_file_for_daemons_lang(filename):
                 self.recognize(filename)
+
+    def is_sound_file_for_daemons_lang(self, filename):
+        filename_codec = os.path.splitext(filename)[1]
+        result = filename.startswith(self.lang) and filename_codec not in ['.wav', '.txt']
+        return result
 
     def recognize(self, filename):
         start_time = time.time()
+        self.rec = self.make_recognizer(filename)
         wav_file = self.fileToWav(filename)
         text = self.wav_to_text(wav_file)
         self.write_transcript(wav_file, text)
-        self.delete_recognized_wav(wav_file)
+        self.delete_recognized_files(wav_file)
         time_for_recognizer = time.time() - start_time
         print(f"File: {wav_file}; recognized text: {text}; time for recognize {time_for_recognizer} second")
+
+    def make_recognizer(self, filename):
+        dict = self.get_dict(filename)
+        if dict:
+            rec = KaldiRecognizer(self.voice_model, Daemon.WAV_RATE, dict)
+        else:
+            rec = KaldiRecognizer(self.voice_model, Daemon.WAV_RATE)
+        return rec
+
+    @staticmethod
+    def get_dict(filename):
+        input_dict = os.path.splitext(Daemon.INPUT_FILE_PATH + filename)[0] + ".txt"
+        dict = []
+        if os.path.exists(input_dict):
+            with open(input_dict, "r") as filename_dict:
+                #TODO Определить формат передачи словоря
+                dict = filename_dict.read()
+        return dict
 
     @staticmethod
     def fileToWav(filename):
@@ -109,8 +133,11 @@ class Daemon:
             transcript.write(text)
 
     @staticmethod
-    def delete_recognized_wav(filename):
+    def delete_recognized_files(filename):
         os.remove(Daemon.INPUT_FILE_PATH + filename)
+        input_dict = os.path.splitext(Daemon.INPUT_FILE_PATH + filename)[0] + ".txt"
+        if os.path.exists(input_dict):
+            os.remove(input_dict)
 
 
 if __name__ == '__main__':
