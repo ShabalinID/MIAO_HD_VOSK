@@ -15,6 +15,7 @@ class Daemon:
     DATA_PATH = None
     OUTPUT_FILE_PATH = None
     INPUT_FILE_PATH = None
+    TMP_FILE_PATH = None
 
     def __init__(self):
         Daemon.getConfig()
@@ -34,6 +35,7 @@ class Daemon:
         cls.DATA_PATH = config_daemon['DATA_PATH']
         cls.INPUT_FILE_PATH = Daemon.DATA_PATH + config_daemon['INPUT_FILE_PATH']
         cls.OUTPUT_FILE_PATH = Daemon.DATA_PATH + config_daemon['OUTPUT_FILE_PATH']
+        cls.TMP_FILE_PATH = Daemon.DATA_PATH + config_daemon['TMP_FILE_PATH']
 
     def voiceModelInit(self):
         parser = argparse.ArgumentParser(description="voice recognition daemon")
@@ -47,6 +49,7 @@ class Daemon:
     def dirInit():
         os.makedirs(Daemon.INPUT_FILE_PATH, exist_ok=True)
         os.makedirs(Daemon.OUTPUT_FILE_PATH, exist_ok=True)
+        os.makedirs(Daemon.TMP_FILE_PATH, exist_ok=True)
 
     def recognizerInit(self):
         self.rec = KaldiRecognizer(self.voice_model, Daemon.WAV_RATE)
@@ -60,7 +63,7 @@ class Daemon:
 
     def is_sound_file_for_daemons_lang(self, filename):
         filename_codec = os.path.splitext(filename)[1]
-        result = filename.startswith(self.lang) and filename_codec not in ['.wav', '.txt']
+        result = filename.startswith(self.lang) and filename_codec not in ['.txt']
         return result
 
     def recognize(self, filename):
@@ -68,7 +71,7 @@ class Daemon:
         self.rec = self.make_recognizer(filename)
         wav_file = self.fileToWav(filename)
         text = self.wav_to_text(wav_file)
-        self.write_transcript(wav_file, text)
+        self.write_transcript(filename, text)
         self.delete_recognized_files(wav_file)
         time_for_recognizer = time.time() - start_time
         print(f"File: {wav_file}; recognized text: {text}; time for recognize {time_for_recognizer} second")
@@ -87,22 +90,22 @@ class Daemon:
         dict = []
         if os.path.exists(input_dict):
             with open(input_dict, "r") as filename_dict:
-                #TODO Определить формат передачи словоря
                 dict = filename_dict.read()
+            os.remove(input_dict)
         return dict
 
     @staticmethod
     def fileToWav(filename):
-        input_file = filename
-        output_file = os.path.splitext(filename)[0] + ".wav"
+        input_file = Daemon.INPUT_FILE_PATH + filename
+        wav_file = Daemon.TMP_FILE_PATH + os.path.splitext(filename)[0] + ".wav"
         # using ffmpeg app for convert all audio file for .wav with rate=16000 and mono
         ffmpeg_command = "ffmpeg -hide_banner -loglevel error -i {input_file} -y -ac 1 -ar {sample_rate} {output_file}"\
-            .format(input_file=Daemon.INPUT_FILE_PATH + input_file,
+            .format(input_file=input_file,
                     sample_rate=Daemon.WAV_RATE,
-                    output_file=Daemon.INPUT_FILE_PATH + output_file)
+                    output_file=wav_file)
         os.system(ffmpeg_command)
-        os.remove(Daemon.INPUT_FILE_PATH + input_file)
-        return output_file
+        os.remove(input_file)
+        return wav_file
 
     @staticmethod
     def get_new_files():
@@ -110,7 +113,7 @@ class Daemon:
         return files
 
     def wav_to_text(self, filename):
-        with open(Daemon.INPUT_FILE_PATH + filename, "rb") as wf:
+        with open(filename, "rb") as wf:
             wf.read(44)  # skip wav header
             recognized_words = []
 
@@ -129,12 +132,16 @@ class Daemon:
 
     @staticmethod
     def write_transcript(filename, text):
-        with open(Daemon.OUTPUT_FILE_PATH + os.path.splitext(filename)[0] + '.txt', 'w') as transcript:
+        transctipt_path = Daemon.OUTPUT_FILE_PATH + os.path.splitext(filename)[0] + '.txt'
+        with open(transctipt_path, 'w') as transcript:
             transcript.write(text)
 
     @staticmethod
     def delete_recognized_files(filename):
-        os.remove(Daemon.INPUT_FILE_PATH + filename)
+        wav_file = filename
+        if os.path.exists(wav_file):
+            os.remove(wav_file)
+
         input_dict = os.path.splitext(Daemon.INPUT_FILE_PATH + filename)[0] + ".txt"
         if os.path.exists(input_dict):
             os.remove(input_dict)
