@@ -18,13 +18,13 @@ class Daemon:
     TMP_FILE_PATH = None
 
     def __init__(self):
-        Daemon.getConfig()
-        self.voiceModelInit()
-        #self.recognizerInit()
+        Daemon.get_config()
+        self.voice_model_init()
+        self.recognizer_init()
         self.dirInit()
 
     @classmethod
-    def getConfig(cls):
+    def get_config(cls):
         config = configparser.ConfigParser()
         config.read("config.ini")
         config_daemon = config['DAEMON']
@@ -37,7 +37,7 @@ class Daemon:
         cls.OUTPUT_FILE_PATH = Daemon.DATA_PATH + config_daemon['OUTPUT_FILE_PATH']
         cls.TMP_FILE_PATH = Daemon.DATA_PATH + config_daemon['TMP_FILE_PATH']
 
-    def voiceModelInit(self):
+    def voice_model_init(self):
         parser = argparse.ArgumentParser(description="voice recognition daemon")
         parser.add_argument("lang", type=str, help='Language for recognizer', default="ru", nargs='?', const="ru")
         args = parser.parse_args()
@@ -45,23 +45,22 @@ class Daemon:
         model_path = Daemon.PY_PATH + "models/" + self.lang
         self.voice_model = Model(model_path)
 
+    def recognizer_init(self):
+        self.default_rec = KaldiRecognizer(self.voice_model, Daemon.WAV_RATE)
+
     @staticmethod
     def dirInit():
         os.makedirs(Daemon.INPUT_FILE_PATH, exist_ok=True)
         os.makedirs(Daemon.OUTPUT_FILE_PATH, exist_ok=True)
         os.makedirs(Daemon.TMP_FILE_PATH, exist_ok=True)
 
-    def recognizerInit(self):
-        self.rec = KaldiRecognizer(self.voice_model, Daemon.WAV_RATE)
-        # self.rec = KaldiRecognizer(self.voice_model, Daemon.WAV_RATE, '["раз", "два", "три", "[unk]"]')
-
     def start(self):
         filenames = self.get_new_files()
         for filename in filenames:
-            if self.is_sound_file_for_daemons_lang(filename):
+            if self.is_supported_lang(filename):
                 self.recognize(filename)
 
-    def is_sound_file_for_daemons_lang(self, filename):
+    def is_supported_lang(self, filename):
         filename_codec = os.path.splitext(filename)[1]
         result = filename.startswith(self.lang) and filename_codec not in ['.txt']
         return result
@@ -72,7 +71,7 @@ class Daemon:
         wav_file = self.fileToWav(filename)
         text = self.wav_to_text(wav_file)
         self.write_transcript(filename, text)
-        self.delete_recognized_files(wav_file)
+        self.delete_recognized_wav(wav_file)
         time_for_recognizer = time.time() - start_time
         print(f"File: {wav_file}; recognized text: {text}; time for recognize {time_for_recognizer} second")
 
@@ -81,7 +80,7 @@ class Daemon:
         if dict:
             rec = KaldiRecognizer(self.voice_model, Daemon.WAV_RATE, dict)
         else:
-            rec = KaldiRecognizer(self.voice_model, Daemon.WAV_RATE)
+            rec = self.default_rec
         return rec
 
     @staticmethod
@@ -137,14 +136,10 @@ class Daemon:
             transcript.write(text)
 
     @staticmethod
-    def delete_recognized_files(filename):
+    def delete_recognized_wav(filename):
         wav_file = filename
         if os.path.exists(wav_file):
             os.remove(wav_file)
-
-        input_dict = os.path.splitext(Daemon.INPUT_FILE_PATH + filename)[0] + ".txt"
-        if os.path.exists(input_dict):
-            os.remove(input_dict)
 
 
 if __name__ == '__main__':
