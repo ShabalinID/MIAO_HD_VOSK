@@ -6,6 +6,9 @@ import time
 import os
 import argparse
 import configparser
+import logging
+import shutil
+import stat
 
 
 class Daemon:
@@ -21,7 +24,7 @@ class Daemon:
         Daemon.get_config()
         self.voice_model_init()
         self.recognizer_init()
-        self.dirInit()
+        self.dir_init()
 
     @classmethod
     def get_config(cls):
@@ -49,10 +52,19 @@ class Daemon:
         self.default_rec = KaldiRecognizer(self.voice_model, Daemon.WAV_RATE)
 
     @staticmethod
-    def dirInit():
+    def dir_init():
         os.makedirs(Daemon.INPUT_FILE_PATH, exist_ok=True)
         os.makedirs(Daemon.OUTPUT_FILE_PATH, exist_ok=True)
         os.makedirs(Daemon.TMP_FILE_PATH, exist_ok=True)
+
+        stat_mode = stat.S_IRUSR | stat.S_IWUSR | stat.S_IXUSR | \
+                    stat.S_IRGRP | stat.S_IWGRP | stat.S_IXGRP | \
+                    stat.S_IROTH | stat.S_IWOTH | stat.S_IXOTH
+        os.chmod(path=Daemon.INPUT_FILE_PATH, mode=stat_mode)
+        os.chmod(path=Daemon.OUTPUT_FILE_PATH, mode=stat_mode)
+        os.chmod(path=Daemon.TMP_FILE_PATH, mode=stat_mode)
+
+
 
     def start(self):
         filenames = self.get_new_files()
@@ -62,7 +74,7 @@ class Daemon:
 
     def is_supported_lang(self, filename):
         filename_codec = os.path.splitext(filename)[1]
-        result = filename.startswith(self.lang) and filename_codec not in ['.txt']
+        result = filename.startswith(self.lang) and filename_codec not in ['.dict']
         return result
 
     def recognize(self, filename):
@@ -85,7 +97,7 @@ class Daemon:
 
     @staticmethod
     def get_dict(filename):
-        input_dict = os.path.splitext(Daemon.INPUT_FILE_PATH + filename)[0] + ".txt"
+        input_dict = os.path.splitext(Daemon.INPUT_FILE_PATH + filename)[0] + ".dict"
         dict = []
         if os.path.exists(input_dict):
             with open(input_dict, "r") as filename_dict:
@@ -144,6 +156,7 @@ class Daemon:
 
 if __name__ == '__main__':
     SetLogLevel(-1)
+    logger = logging.getLogger(__name__)
     daemon = Daemon()
     print("The daemon has been successfully launched!")
     print("Daemon language: ", daemon.lang)
@@ -160,5 +173,6 @@ if __name__ == '__main__':
 
     finally:
         print("Daemon was interrupted!")
-#        shutil.rmtree(wavs_path)
-#        shutil.rmtree(text_path)
+        shutil.rmtree(Daemon.DATA_PATH + Daemon.INPUT_FILE_PATH)
+        shutil.rmtree(Daemon.DATA_PATH + Daemon.OUTPUT_FILE_PATH)
+        shutil.rmtree(Daemon.DATA_PATH + Daemon.TMP_FILE_PATH)
