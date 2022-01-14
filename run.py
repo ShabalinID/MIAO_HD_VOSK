@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-from vosk import Model, KaldiRecognizer
+from vosk import Model, KaldiRecognizer, SetLogLevel
 import wave
 import json
 import time
@@ -163,10 +163,10 @@ class Daemon:
 
 
 if __name__ == '__main__':
+    SetLogLevel(-1)
     daemon = Daemon()
     try:
         while True:
-            print('Daemon sleep')
             daemon.start()
             time.sleep(Daemon.SLEEP)
 
