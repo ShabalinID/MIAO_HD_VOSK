@@ -71,7 +71,9 @@ class Daemon:
 
     def start(self):
         filenames = self.get_new_files()
+        print("Filenames: ", filenames)
         for filename in filenames:
+            print('Work on: ', filename)
             if self.is_supported_lang(filename):
                 self.recognize(filename)
 
@@ -163,6 +165,7 @@ if __name__ == '__main__':
     daemon = Daemon()
     try:
         while True:
+            print('Daemon sleep')
             daemon.start()
             time.sleep(Daemon.SLEEP)
 
