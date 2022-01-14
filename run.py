@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-from vosk import Model, KaldiRecognizer, SetLogLevel
+from vosk import Model, KaldiRecognizer
 import wave
 import json
 import time
@@ -25,6 +25,11 @@ class Daemon:
         self.voice_model_init()
         self.recognizer_init()
         self.dir_init()
+        logging.basicConfig(filename=self.lang + '_daemon.log',
+                            level=logging.INFO,
+                            format='%(asctime)s - %(levelname)s - %(message)s')
+        logging.info("The daemon has been successfully launched!")
+        logging.info("Daemon language: " + self.lang)
 
     @classmethod
     def get_config(cls):
@@ -64,8 +69,6 @@ class Daemon:
         os.chmod(path=Daemon.OUTPUT_FILE_PATH, mode=stat_mode)
         os.chmod(path=Daemon.TMP_FILE_PATH, mode=stat_mode)
 
-
-
     def start(self):
         filenames = self.get_new_files()
         for filename in filenames:
@@ -85,7 +88,9 @@ class Daemon:
         self.write_transcript(filename, text)
         self.delete_recognized_wav(wav_file)
         time_for_recognizer = time.time() - start_time
-        print(f"File: {wav_file}; recognized text: {text}; time for recognize {time_for_recognizer} second")
+        logging.info(f"File: {wav_file}; "
+                     f"recognized text: {text}; "
+                     f"time for recognize {'%.3f' % time_for_recognizer} second")
 
     def make_recognizer(self, filename):
         dict = self.get_dict(filename)
@@ -155,24 +160,20 @@ class Daemon:
 
 
 if __name__ == '__main__':
-    SetLogLevel(-1)
-    logger = logging.getLogger(__name__)
     daemon = Daemon()
-    print("The daemon has been successfully launched!")
-    print("Daemon language: ", daemon.lang)
     try:
         while True:
             daemon.start()
             time.sleep(Daemon.SLEEP)
 
     except FileNotFoundError:
-        print("File doesn't exist!")
+        logging.error(FileNotFoundError)
 
     except wave.Error:
-        print(wave.Error)
+        logging.error(wave.Error)
 
     finally:
-        print("Daemon was interrupted!")
+        logging.warning("Daemon was interrupted!")
         shutil.rmtree(Daemon.DATA_PATH + Daemon.INPUT_FILE_PATH)
         shutil.rmtree(Daemon.DATA_PATH + Daemon.OUTPUT_FILE_PATH)
         shutil.rmtree(Daemon.DATA_PATH + Daemon.TMP_FILE_PATH)
