@@ -44,6 +44,7 @@ class Daemon:
         cls.INPUT_FILE_PATH = Daemon.DATA_PATH + config_daemon['INPUT_FILE_PATH']
         cls.OUTPUT_FILE_PATH = Daemon.DATA_PATH + config_daemon['OUTPUT_FILE_PATH']
         cls.TMP_FILE_PATH = Daemon.DATA_PATH + config_daemon['TMP_FILE_PATH']
+        print(cls.INPUT_FILE_PATH, cls.OUTPUT_FILE_PATH)
 
     def voice_model_init(self):
         parser = argparse.ArgumentParser(description="voice recognition daemon")
