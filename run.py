@@ -214,8 +214,8 @@ if __name__ == '__main__':
         logging.error(e, exc_info=True)
 
     finally:
-        logging.warning("Daemon was interrupted!")
-        logging.error()
+        logging.exception("Daemon was interrupted!")
         shutil.rmtree(Daemon.DATA_PATH + Daemon.INPUT_FILE_PATH)
         shutil.rmtree(Daemon.DATA_PATH + Daemon.OUTPUT_FILE_PATH)
         shutil.rmtree(Daemon.DATA_PATH + Daemon.TMP_FILE_PATH)
+        raise
