@@ -44,7 +44,6 @@ class Daemon:
         cls.INPUT_FILE_PATH = Daemon.DATA_PATH + config_daemon['INPUT_FILE_PATH']
         cls.OUTPUT_FILE_PATH = Daemon.DATA_PATH + config_daemon['OUTPUT_FILE_PATH']
         cls.TMP_FILE_PATH = Daemon.DATA_PATH + config_daemon['TMP_FILE_PATH']
-        print(cls.INPUT_FILE_PATH, cls.OUTPUT_FILE_PATH)
 
     def voice_model_init(self):
         parser = argparse.ArgumentParser(description="voice recognition daemon")
@@ -72,10 +71,11 @@ class Daemon:
 
     def start(self):
         filenames = self.get_new_files()
-        print("Filenames: ", filenames)
+        if filenames:
+            print("Filenames: ", filenames)
         for filename in filenames:
-            print('Work on: ', filename)
             if self.is_supported_lang(filename):
+                print('Work on: ', filename)
                 self.recognize(filename)
 
     def is_supported_lang(self, filename):
@@ -118,7 +118,7 @@ class Daemon:
         input_file = Daemon.INPUT_FILE_PATH + filename
         wav_file = Daemon.TMP_FILE_PATH + os.path.splitext(filename)[0] + ".wav"
         # using ffmpeg app for convert all audio file for .wav with rate=16000 and mono
-        ffmpeg_command = "ffmpeg -hide_banner -loglevel error -i {input_file} -y -ac 1 -ar {sample_rate} {output_file}"\
+        ffmpeg_command = "ffmpeg -hide_banner -loglevel error -i {input_file} -y -ac 1 -ar {sample_rate} {output_file}" \
             .format(input_file=input_file,
                     sample_rate=Daemon.WAV_RATE,
                     output_file=wav_file)
@@ -162,22 +162,60 @@ class Daemon:
             os.remove(wav_file)
 
 
+# Программа должна принимать файл 'плацебо' через определенное время, чтобы система не разгружала ОЗУ в swap
+def take_placebo(daemon):
+    placebo = 'data/placebo.wav'
+    with open(placebo, "rb") as wf:
+        wf.read(44)  # skip wav header
+        recognized_words = []
+
+        while True:
+            data = wf.read(4000)
+            if len(data) == 0:
+                break
+            if daemon.default_rec.AcceptWaveform(data):
+                res = json.loads(daemon.default_rec.Result())
+                recognized_words.append(res['text'])
+
+        res = json.loads(daemon.default_rec.FinalResult())
+        recognized_words.append(res['text'])
+        text = ' '.join(recognized_words)
+        logging.info('Placebo was taken')
+        logging.info('Placebo: ' + text)
+
+
+def time_for_placebo(start_time):
+    placebo_frequency = 3 * 60 * 60  # 3 hours
+    return placebo_frequency < start_time
+
+
 if __name__ == '__main__':
+    start_time = time.time()
     SetLogLevel(-1)
     daemon = Daemon()
+    take_placebo(daemon)
+    time_to_init = time.time() - start_time
+    logging.info(f"Initialized in {'%.3f' % time_to_init} seconds")
     try:
         while True:
             daemon.start()
             time.sleep(Daemon.SLEEP)
+            if time_for_placebo(time.time() - start_time):
+                take_placebo(daemon)
+                start_time = time.time()
 
     except FileNotFoundError:
-        logging.error(FileNotFoundError)
+        logging.error(FileNotFoundError, exc_info=True)
 
     except wave.Error:
-        logging.error(wave.Error)
+        logging.error(wave.Error, exc_info=True)
+
+    except Exception as e:
+        logging.error(e, exc_info=True)
 
     finally:
         logging.warning("Daemon was interrupted!")
+        logging.error()
         shutil.rmtree(Daemon.DATA_PATH + Daemon.INPUT_FILE_PATH)
         shutil.rmtree(Daemon.DATA_PATH + Daemon.OUTPUT_FILE_PATH)
         shutil.rmtree(Daemon.DATA_PATH + Daemon.TMP_FILE_PATH)
