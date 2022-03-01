@@ -162,47 +162,16 @@ class Daemon:
             os.remove(wav_file)
 
 
-# Программа должна принимать файл 'плацебо' через определенное время, чтобы система не разгружала ОЗУ в swap
-def take_placebo(daemon):
-    placebo = 'data/placebo.wav'
-    with open(placebo, "rb") as wf:
-        wf.read(44)  # skip wav header
-        recognized_words = []
-
-        while True:
-            data = wf.read(4000)
-            if len(data) == 0:
-                break
-            if daemon.default_rec.AcceptWaveform(data):
-                res = json.loads(daemon.default_rec.Result())
-                recognized_words.append(res['text'])
-
-        res = json.loads(daemon.default_rec.FinalResult())
-        recognized_words.append(res['text'])
-        text = ' '.join(recognized_words)
-        logging.info('Placebo was taken')
-        logging.info('Placebo: ' + text)
-
-
-def time_for_placebo(start_time):
-    placebo_frequency = 3 * 60 * 60  # 3 hours
-    return placebo_frequency < start_time
-
-
 if __name__ == '__main__':
     start_time = time.time()
     SetLogLevel(-1)
     daemon = Daemon()
-    take_placebo(daemon)
     time_to_init = time.time() - start_time
     logging.info(f"Initialized in {'%.3f' % time_to_init} seconds")
     try:
         while True:
             daemon.start()
             time.sleep(Daemon.SLEEP)
-            if time_for_placebo(time.time() - start_time):
-                take_placebo(daemon)
-                start_time = time.time()
 
     except FileNotFoundError:
         logging.error(FileNotFoundError, exc_info=True)
